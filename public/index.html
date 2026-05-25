@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+ <head>
+   <meta charset="utf-8" />
+   <title>배리어프리 지도 - 포천 중심</title>
+   <style>
+     /* 화면 전체를 여백 없이 꽉 채우기 위한 기본 설정 */
+     html,
+     body {
+       margin: 0;
+       padding: 0;
+       width: 100%;
+       height: 100%;
+       overflow: hidden; /* 지도가 화면 밖으로 넘치더라도 스크롤바가 생기지 않도록 차단 */
+     }
+     
+     /* 지도가 그려지는 영역 설정 */
+     #map {
+       width: 100%;
+       height: 100vh;    /* 세로 높이를 현재 화면에 맞게 꽉 채움 */
+     }
+     
+     /* 화면 맨 위 안내 바 디자인 설정 */
+     #info-bar {
+       position: absolute;    /* 지도 위에 둥둥 띄우기 위한 설정 */       
+       top: 10px;             /* 위쪽 여백 */
+       left: 50%;             /* 가로 중앙 정렬 시작점 */
+       transform: translateX(-50%); /* 가로 중앙 정렬 완성 */
+       z-index: 10;           /* 지도가 위를 덮지 못하게 안내 바를 위로 올림 */
+       background: rgba(255, 255, 255, 0.9); /* 살짝 투명한 하얀색 배경색 */
+       padding: 10px 20px;    /* 안쪽 여백 */
+       border-radius: 30px;   /* 모서리를 둥글게 깎음 */
+       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); /* 안내 바 밑에 그림자 효과 */
+       font-family: sans-serif;
+       font-size: 14px;
+       font-weight: bold;
+       color: #333;
+     }
+
+     /* [교정] 우측 상단 수동 입력 상자 모달 레이아웃 디자인 정의 선언 */
+     #input-box {
+       display: none;         /* 기본 상태 레이아웃 비활성화 처리 */
+       position: absolute;
+       top: 20px;
+       right: 20px;           /* 화면 기준 우측 상단 모서리 고정 */
+       z-index: 20;           /* 최상단 레이어 배정 */
+       background: white;
+       padding: 15px;
+       border-radius: 8px;
+       box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+       font-family: sans-serif;
+       width: 200px;
+     }
+     #input-box h4 { margin: 0 0 10px 0; font-size: 14px; color: #333; }
+     #input-box input { width: 90%; padding: 6px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+     #input-box button { width: 48%; padding: 6px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+     #save-btn { background: #4CAF50; color: white; margin-right: 2%; }
+     #cancel-btn { background: #f44336; color: white; }
+   </style>
+ </head>
+ <body>
+   <div id="info-bar">📍 현재 지역: 경기도 포천시</div>
+   
+   <div id="map"></div>
+
+   <div id="input-box">
+     <h4>📍 새로운 장소 등록</h4>
+     <input type="text" id="place-name" placeholder="장소 이름을 입력하세요" />
+     <div style="display: flex;">
+       <button id="save-btn">저장</button>
+       <button id="cancel-btn">취소</button>
+     </div>
+   </div>
+
+   <script
+     type="text/javascript"
+     src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=49e85ecac915893ebe3e89efcd4d492c&autoload=false"
+   ></script>
+
+   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+   <script>
+     /* 웹 페이지 로딩이 모두 완료되면 실행 */
+     window.onload = function () {
+       
+       /* 내 파이어베이스 서버 주소록 설정 */
+       const firebaseConfig = {
+         apiKey: "AIzaSyALgz1N0v8yuRxzhqfDuHFMjNh3xZ8GgwE",
+         authDomain: "barrier-free-pocheon-dajeong.firebaseapp.com",
+         projectId: "barrier-free-pocheon-dajeong",
+         storageBucket: "barrier-free-pocheon-dajeong.firebasestorage.app",
+         messagingSenderId: "457062698782",
+         appId: "1:457062698782:web:0a96364ea3757b3aa5430f"
+       };
+
+       /* 파이어베이스 작동 시작 */
+       firebase.initializeApp(firebaseConfig);
+       
+       /* Firestore 데이터베이스 연결 및 db 변수에 저장 */
+       const db = firebase.firestore();
+       console.log('Firebase 연결 완료!');
+
+       /* [카카오 지도 API 참고] load: 지도 기능 호출 및 컴파일 완료 후 구동 콜백 정의 함수 */
+       kakao.maps.load(function () {
+         
+         var mapContainer = document.getElementById('map'); 
+         
+         /* [카카오 지도 API 참고] LatLng: 지리적 위도 및 경도 수치 데이터를 고유 좌표계로 매핑 선언하는 함수 */
+         var pocheonCenter = new kakao.maps.LatLng(37.894911, 127.200332); 
+
+         var mapOption = { center: pocheonCenter, level: 4 }; 
+         
+         /* [카카오 지도 API 참고] Map: 최종 지도 캔버스 그래픽을 빌드 및 출력 설정하는 함수 */
+         var map = new kakao.maps.Map(mapContainer, mapOption); 
+
+         /* [카카오 지도 API 참고] LatLngBounds: 남서-북동 좌표쌍 기반 사각형 한계 경계 영역을 생성하는 함수 */
+         var pocheonBounds = new kakao.maps.LatLngBounds(
+           new kakao.maps.LatLng(37.75, 127.05),
+           new kakao.maps.LatLng(38.15, 127.35)
+         );
+
+         /* [카카오 지도 API 참고] event.addListener: 컴포넌트 객체의 런타임 이벤트 트리거 여부를 상시 감시하는 함수 */
+         kakao.maps.event.addListener(map, 'dragend', function () {
+           /* [카카오 지도 API 참고] getCenter: 렌더링 영역 한가운데의 공간 좌표 오브젝트를 반환 추출하는 함수 */
+           var currentCenter = map.getCenter(); 
+           
+           /* [카카오 지도 API 참고] contain: 인자로 받은 공간 좌표가 선언된 사각형 영역 내부에 존재하는지 판정 제어하는 함수 */
+           if (!pocheonBounds.contain(currentCenter)) {
+             /* [카카오 지도 API 참고] panTo: 중심 위치를 특정 타깃 공간 좌표 위치로 평면 자동 이동 제어하는 함수 */
+             map.panTo(pocheonCenter); 
+             alert('포천 지역 안에서만 이동 가능합니다.'); 
+           }
+         });
+
+         /* [카카오 지도 API 참고] setMaxLevel: 지도의 축소 한계 경계 레벨 단계를 고정 지정하는 함수 */
+         map.setMaxLevel(8); 
+
+         /* 사용자가 웹 브라우저 전체 창 규격을 변경할 때의 화면 반응성 확보 처리 */
+         window.addEventListener('resize', function () {
+           /* [카카오 지도 API 참고] relayout: 화면 스케일 변화에 따른 그래픽 레이아웃 비율 재정렬 함수 */
+           map.relayout(); 
+           map.setCenter(pocheonCenter); 
+         });
+
+         /* 현재 화면에 열려 있는 말풍선 객체를 저장할 포인터 변수 */
+         var currentInfowindow = null;
+
+         /* 클릭한 위치의 좌표를 임시 보관할 내부 변수 선언 */
+         var selectedLatLng = null;
+         
+         /* [카카오 지도 API 참고] event.addListener: 일반 지도 배경면 클릭 행위 입력 시의 구동부 정의 선언 */
+         kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
+           
+           /* 기존 활성화 상태의 정보창(말풍선)이 식별될 시 사전 폐쇄 및 초기화 처리 */
+           if (currentInfowindow) {
+             /* [카카오 지도 API 참고] close: 생성 활성화된 인포윈도우 그래픽을 소멸 제어하는 함수 */
+             currentInfowindow.close(); 
+             currentInfowindow = null;  
+           }
+
+           /* 마우스 이벤트 데이터 묶음 객체에서 타깃 공간 좌표 정보 추출 보관 */
+           selectedLatLng = mouseEvent.latLng;
+
+           /* 입력 폼 양식 디자인 박스 컴포넌트를 화면 가시 영역으로 노출 전환 */
+           var inputBox = document.getElementById('input-box');
+           inputBox.style.display = 'block';
+
+           /* 이전 텍스트 찌꺼기 레코드 제거 및 입력 창 포커스 처리 */
+           document.getElementById('place-name').value = '';
+           document.getElementById('place-name').focus();
+         }); // [교정] 분리 단절되어 있던 지도 클릭 이벤트 리스너 함수 구역 정상 폐쇄 종결
+
+         /* 취소 컴포넌트 요소 선택 클릭 시 인터페이스 양식 상자 숨김 및 좌표 변수 상태 초기화 */
+         document.getElementById('cancel-btn').addEventListener('click', function() {
+           document.getElementById('input-box').style.display = 'none';
+           selectedLatLng = null;
+         });
+
+         /* 저장 컴포넌트 클릭 시 인풋 텍스트 필드 값 검증 후 Firestore 서버에 문서 전송 추가 실행 */
+         document.getElementById('save-btn').addEventListener('click', function() {
+           var nameInput = document.getElementById('place-name').value.trim();
+
+           if (!nameInput) {
+             alert('장소 이름을 입력해야 합니다.');
+             return;
+           }
+
+           if (selectedLatLng) {
+             /* [파이어베이스 참고] collection().add: 원격 컬렉션 노드 하위에 유일 ID의 새 데이터를 저장 반영하는 함수 */
+             db.collection('places').add({
+               name: nameInput,
+               /* [카카오 지도 API 참고] getLat: 위도(Latitude) 좌표 부동 소수점 실수 데이터를 가공 추출하는 함수 */
+               lat: selectedLatLng.getLat(), 
+               /* [카카오 지도 API 참고] getLng: 경도(Longitude) 좌표 부동 소수점 실수 데이터를 가공 추출하는 함수 */
+               lng: selectedLatLng.getLng()  
+             })
+             .then(() => {
+               alert('장소가 성공적으로 등록되었습니다.');
+               location.reload(); /* 영구 저장 트랜잭션 성공 후 지도 화면 새로고침 상태 갱신 가동 */
+             })
+             .catch((error) => {
+               console.error("데이터베이스 저장 오류: ", error);
+             });
+           }
+         });
+
+         /* [카카오 지도 API 참고] Marker: 가상 지도 레이어 상에 꽂아둘 기본 마커 컴포넌트 객체를 빌드 정의하는 함수 */
+         var centerMarker = new kakao.maps.Marker({
+           position: pocheonCenter,
+         });
+         /* [카카오 지도 API 참고] setMap: 초기화 빌드 완료된 마커 컴포넌트를 대상 물리 지도 객체 위에 드로잉 출력하는 함수 */
+         centerMarker.setMap(map); 
+
+         /* 파이어베이스의 'places' 컬렉션 폴더를 열어서 그 안의 데이터 전부 가져오기 */
+         db.collection('places').get().then((querySnapshot) => {
+           
+           /* 데이터베이스에 등록된 장소 개수만큼 한 장씩 반복해서 마커 찍기 실행 */
+           querySnapshot.forEach((doc) => {
+             const data = doc.data(); 
+             
+             if (data.lat && data.lng) {
+               
+               var markerPosition = new kakao.maps.LatLng(Number(data.lat), Number(data.lng));
+
+               var marker = new kakao.maps.Marker({
+                 position: markerPosition,
+                 map: map
+               });
+
+               if (data.name) {
+                 
+                 /* [카카오 지도 API 참고] InfoWindow: 특정 문자열 및 마크업 데이터 소스를 레이아웃 팝업 형태로 출력 정의하는 함수 */
+                 var infowindow = new kakao.maps.InfoWindow({
+                   content: `<div style="padding:5px; font-size:12px; color:#333; min-width:150px; text-align:center;">${data.name}</div>`
+                 });
+
+                 kakao.maps.event.addListener(marker, 'click', function() {
+                   
+                   if (currentInfowindow) {
+                     currentInfowindow.close();
+                   }
+                   
+                   /* [카카오 지도 API 참고] open: 인포윈도우 객체를 인자로 받은 마커의 절대 좌표 머리 위에 결합 활성화하는 함수 */
+                   infowindow.open(map, marker); 
+                   currentInfowindow = infowindow; 
+                 });
+               }
+             }
+           });
+         }).catch((error) => {
+           console.error("데이터 로드 오류 발생: ", error); 
+         });
+
+       });
+     };
+   </script>
+ </body>
+</html>
