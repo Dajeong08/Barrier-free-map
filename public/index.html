@@ -1,273 +1,56 @@
-<!DOCTYPE html>
-<html>
- <head>
-   <meta charset="utf-8" />
-   <title>배리어프리 지도 - 포천 중심</title>
-   <style>
-     /* 화면 전체를 여백 없이 꽉 채우기 위한 기본 설정 */
-     html,
-     body {
-       margin: 0;      /* 브라우저가 기본적으로 가지는 바깥 여백을 없앰 */
-       padding: 0;     /* 브라우저 기본 안쪽 여백을 없애서 딱 맞게 밀착시킴 */
-       width: 100%;    /* 가로 너비를 화면에 100% 꽉 채움 */
-       height: 100%;   /* 세로 높이를 화면에 100% 꽉 채움 */
-       overflow: hidden; /* 지도가 화면 밖으로 넘치더라도 스크롤바가 생기지 않도록 차단 */
-     }
-     
-     /* 지도가 그려지는 영역 설정 */
-     #map {
-       width: 100%;    /* 지도 가로를 화면 전체로 채움 */
-       height: 100vh;   /* 세로 높이를 현재 화면에 맞게 꽉 채움 */
-     }
-     
-     /* 화면 맨 위 안내 바 디자인 설정 */
-     #info-bar {
-       position: absolute;    /* 지도가 밑에 깔리고, 그 위에 둥둥 뜨도록 설정 */
-       top: 15px;             /* 위쪽 여백을 살짝 줌 */
-       left: 15px;            /* 좌우 여백을 주어 맵 위에 떠 있는 느낌 강조 */
-       right: 15px;
-       height: 60px;          /* 상단 바의 세로 높이 */
-       z-index: 10;           /* 지도가 위를 덮지 못하게 안내 바를 위로 올림 */
-       background: #ffffff;   /* 지금은 흰색 배경 처리 (나중에 이미지로 변경 가능) */
-       border-radius: 4px;    /* 모서리 아주 살짝만 부드럽게 깎음 */
-       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); /* 안내 바 밑에 은은한 그림자 효과 */
-     }
+<!DOCTYPE html> 
+<html lang="ko"> 
+<head>
+  <meta charset="utf-8" /> 
+  <meta name="viewport" content="width=device-width, initial-scale=1" /> 
+  <title>배리어프리 지도 - 포천 중심</title> 
+  <link rel="stylesheet" href="./styles.css" /> 
+</head>
+<body> 
+  <div id="info-bar"></div> 
+  <div id="sidebar"></div> 
+  <div id="map"></div> 
 
-     /* 우측 바 (사이트 설명/검색용 빈 공간) */
-     #sidebar {
-       position: absolute;    /* 지도 위에 둥둥 띄우기 위한 설정 */
-       top: 90px;             /* 상단 바 아래에 배치 */
-       right: 15px;           /* 화면 기준 우측 모서리 고정 */
-       bottom: 20px;          /* 아래쪽 여백 고정으로 세로로 긴 바 형태 유지 */
-       width: 280px;          /* 우측 바 가로폭 크기 지정 */
-       z-index: 10;           /* 지도가 위를 덮지 못하게 위로 올림 */
-       background: #ffffff;   /* 지금은 흰색 배경 처리 (나중에 이미지로 변경 가능) */
-       border-radius: 16px;   /* 모서리를 둥글게 깎음 */
-       box-shadow: 0 4px 20px rgba(0,0,0,0.15); /* 우측 바 밑에 그림자 효과 */
-       padding: 20px;         /* 박스 내부 여백 */
-       box-sizing: border-box; /* 패딩이 박스 전체 크기에 영향을 주지 않도록 제어 */
-     }
+  <div id="register-menu" class="register-menu"> 
+    <button id="open-form-btn" type="button">신규 장소 등록</button> 
+  </div>
 
-     /* 맵 클릭 시 화면 중앙 팝업으로 뜨는 장소 등록 상자 */
-     #input-box {
-       display: none;         /* 기본 상태 레이아웃 비활성화 처리 */
-       position: absolute;    /* 지도 위에 둥둥 띄우기 설정 */
-       top: 50%;              /* 화면 가로세로 정중앙 배치를 위한 시작점 */
-       left: 50%;
-       transform: translate(-50%, -50%); /* 정확한 화면 한가운데 팝업 정렬 완성 */
-       z-index: 20;           /* 최상단 레이어 배정 (우측 바보다 더 위에 뜨게 함) */
-       background: white;     /* 배경은 흰색 */
-       padding: 20px;         /* 안쪽 여백 */
-       border-radius: 12px;   /* 모서리를 부드럽게 깎음 */
-       box-shadow: 0 4px 25px rgba(0,0,0,0.3); /* 입력 상자 밑 강력한 그림자 효과 */
-       font-family: sans-serif;
-       width: 260px;          /* 입력창 전체 가로 크기 */
-     }
-     #input-box h4 { margin: 0 0 12px 0; font-size: 15px; color: #333; }
-     #input-box input { width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
-     #input-box .btn-group { display: flex; gap: 8px; } /* 버튼 사이 가로 간격 조절 */
-     #input-box button { width: 50%; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-     #save-btn { background: #4CAF50; color: white; } /* 저장 버튼 초록색 */
-     #cancel-btn { background: #f44336; color: white; } /* 취소 버튼 빨간색 */
-   </style>
- </head>
- <body>
-   <div id="info-bar"></div>
-   
-   <div id="sidebar"></div>
-   
-   <div id="map"></div>
+  <section id="register-modal" class="register-modal" aria-label="신규 장소 등록"> 
+    <header class="modal-header"> 
+      <button id="cancel-btn" type="button">취소</button> 
+      <h1>신규 장소 등록</h1> 
+      <button id="save-btn" type="button">등록</button> 
+    </header>
 
-   <div id="input-box">
-     <h4>📍 새로운 장소 등록</h4>
-     <input type="text" id="place-name" placeholder="장소 이름을 입력하세요" />
-     <div class="btn-group">
-       <button id="save-btn">저장</button>
-       <button id="cancel-btn">취소</button>
-     </div>
-   </div>
+    <form id="place-form" class="modal-body">
+      <label class="photo-box" for="place-photo"> 
+        <img id="photo-preview" alt="선택한 장소 사진 미리보기" /> 
+        <span id="photo-guide" class="photo-plus" aria-hidden="true">+</span> 
+        <span id="photo-controls" class="photo-controls">
+          <button id="prev-photo-btn" type="button" aria-label="이전 사진">‹</button> 
+          <strong id="photo-count">1/1</strong> 
+          <button id="next-photo-btn" type="button" aria-label="다음 사진">›</button> 
+          <button id="delete-photo-btn" type="button">삭제</button> 
+        </span> 
+      </label>
+      <input id="place-photo" type="file" accept="image/*" multiple /> 
 
-   <script
-     type="text/javascript"
-     src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=49e85ecac915893ebe3e89efcd4d492c&autoload=false"
-   ></script>
+      <label class="field">
+        <span>장소명 <em>(필수)</em></span> '
+        <input id="place-name" type="text" placeholder="업체의 명칭을 입력해주세요." /> 
+      </label>
 
-   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+      <label class="field">
+        <span>기타 <em>(필수)</em></span> 
+        <textarea id="place-reason" placeholder="이 장소가 왜 등록되었는지 입력해주세요. 예: 이 가게의 입구에 경사로가 없어서 등록되었다."></textarea> 
+      </label>
+    </form>
+  </section>
 
-   <script>
-     /* 웹 페이지 로딩이 모두 완료되면 실행 */
-     window.onload = function () {
-       
-       /* 내 파이어베이스 서버 주소록 설정 */
-       const firebaseConfig = {
-         apiKey: "AIzaSyALgz1N0v8yuRxzhqfDuHFMjNh3xZ8GgwE",
-         authDomain: "barrier-free-pocheon-dajeong.firebaseapp.com",
-         projectId: "barrier-free-pocheon-dajeong",
-         storageBucket: "barrier-free-pocheon-dajeong.firebasestorage.app",
-         messagingSenderId: "457062698782",
-         appId: "1:457062698782:web:0a96364ea3757b3aa5430f"
-       };
-
-       /* 파이어베이스 작동 시작 */
-       firebase.initializeApp(firebaseConfig);
-       
-       /* Firestore 데이터베이스 연결 및 db 변수에 저장 */
-       const db = firebase.firestore();
-       console.log('Firebase 연결 완료!');
-
-       /* 지도 기능 호출 및 로딩이 완료된 후 구동 시작 */
-       kakao.maps.load(function () {
-         
-         var mapContainer = document.getElementById('map'); 
-         
-         /* 지리적 위도 및 경도 수치 데이터로 포천 중심 좌표 선언 */
-         var pocheonCenter = new kakao.maps.LatLng(37.894911, 127.200332); 
-
-         /* 중심 위치와 기본 확대/축소 레벨 지정 */
-         var mapOption = { center: pocheonCenter, level: 4 }; 
-         
-         /* 최종 지도 객체를 빌드 및 출력 설정 */
-         var map = new kakao.maps.Map(mapContainer, mapOption); 
-
-         /* 포천을 벗어나지 못하도록 사각형 한계 경계 영역 생성 */
-         var pocheonBounds = new kakao.maps.LatLngBounds(
-           new kakao.maps.LatLng(37.75, 127.05),
-           new kakao.maps.LatLng(38.15, 127.35)
-         );
-
-         /* 지도의 드래그(움직임) 행위 입력이 끝났을 때 구동 */
-         kakao.maps.event.addListener(map, 'dragend', function () {
-           /* 화면 한가운데의 현재 공간 좌표를 추출 */
-           var currentCenter = map.getCenter(); 
-           
-           /* 현재 좌표가 설정된 포천 사각형 영역 내부에 존재하는지 판정 */
-           if (!pocheonBounds.contain(currentCenter)) {
-             /* 영역을 벗어났다면 중심 위치를 원래 포천 중심 좌표로 자동 이동 */
-             map.panTo(pocheonCenter); 
-             alert('포천 지역 안에서만 이동 가능합니다.'); /*알림*/
-           }
-         });
-
-         /* 지도의 축소 한계 경계 레벨 단계를 고정 지정 */
-         map.setMaxLevel(8); 
-
-         /* 사용자가 웹 브라우저 전체 창 규격을 변경할 때의 화면 반응성 확보 처리 */
-         window.addEventListener('resize', function () {
-           map.relayout(); /* 화면 스케일 변화에 따른 레이아웃 비율 재정렬 */
-           map.setCenter(pocheonCenter); /* 리사이즈 후에도 중심위치 유지 */
-         });
-
-         /* 현재 화면에 열려 있는 말풍선 객체를 저장할 포인터 변수 */
-         var currentInfowindow = null;
-
-         /* 클릭한 위치의 좌표를 임시 보관할 내부 변수 선언 */
-         var selectedLatLng = null;
-         
-         /* 일반 지도 배경면 클릭 행위 입력 시의 구동부 정의 선언 */
-         kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
-           
-           /* 기존 활성화 상태의 정보창(말풍선)이 식별될 시 사전 폐쇄 및 초기화 처리 */
-           if (currentInfowindow) {
-             currentInfowindow.close(); 
-             currentInfowindow = null;  
-           }
-
-           /* 마우스 이벤트 데이터 객체에서 클릭한 곳의 좌표 정보 추출 보관 */
-           selectedLatLng = mouseEvent.latLng;
-
-           /* 입력 폼 양식 디자인 박스 컴포넌트를 화면 가시 영역으로 노출 전환 */
-           var inputBox = document.getElementById('input-box');
-           inputBox.style.display = 'block';
-
-           /* 이전 텍스트 찌꺼기 레코드 제거 및 입력 창 포커스 처리 */
-           document.getElementById('place-name').value = '';
-           document.getElementById('place-name').focus();
-         });
-
-         /* 취소 버튼 클릭 시 인터페이스 양식 상자 숨김 및 좌표 변수 상태 초기화 */
-         document.getElementById('cancel-btn').addEventListener('click', function() {
-           document.getElementById('input-box').style.display = 'none';
-           selectedLatLng = null;
-         });
-
-         /* 저장 버튼 클릭 시 인풋 텍스트 필드 값 검증 후 Firestore 서버에 문서 전송 */
-         document.getElementById('save-btn').addEventListener('click', function() {
-           var nameInput = document.getElementById('place-name').value.trim();
-
-           if (!nameInput) {
-             alert('장소 이름을 입력해야 합니다.');
-             return;
-           }
-
-           if (selectedLatLng) {
-             /* 원격 places 컬렉션 하위에 새 데이터를 저장 반영 */
-             db.collection('places').add({
-               name: nameInput,
-               lat: selectedLatLng.getLat(), /* 위도 좌표 데이터 추출 */
-               lng: selectedLatLng.getLng()  /* 경도 좌표 데이터 추출 */
-             })
-             .then(() => {
-               alert('장소가 성공적으로 등록되었습니다.');
-               location.reload(); /* 영구 저장 성공 후 지도 화면 새로고침 상태 갱신 가동 */
-             })
-             .catch((error) => {
-               console.error("데이터베이스 저장 오류: ", error);
-             });
-           }
-         });
-
-         /* 가상 지도 레이어 상에 꽂아둘 포천 중심 마커 컴포넌트 객체 생성 */
-         var centerMarker = new kakao.maps.Marker({
-           position: pocheonCenter,
-         });
-         /* 마커 컴포넌트를 대상 지도 객체 위에 출력 */
-         centerMarker.setMap(map); 
-
-         /* 파이어베이스의 'places' 컬렉션을 열어서 그 안의 데이터 전부 가져오기 */
-         db.collection('places').get().then((querySnapshot) => {
-           
-           /* 데이터베이스에 등록된 장소 개수만큼 한 장씩 반복해서 마커 찍기 실행 */
-           querySnapshot.forEach((doc) => {
-             const data = doc.data(); 
-             
-             if (data.lat && data.lng) {
-               
-               var markerPosition = new kakao.maps.LatLng(Number(data.lat), Number(data.lng));
-
-               /* 저장되어 있던 위치 기반으로 지도 위에 마커 꽂기 */
-               var marker = new kakao.maps.Marker({
-                 position: markerPosition,
-                 map: map
-               });
-
-               if (data.name) {
-                 
-                 /* 특정 문자열 데이터를 레이아웃 팝업 형태로 출력 정의 */
-                 var infowindow = new kakao.maps.InfoWindow({
-                   content: `<div style="padding:5px; font-size:12px; color:#333; min-width:150px; text-align:center;">${data.name}</div>`
-                 });
-
-                 /* 개별 마커 클릭 시 정보창(말풍선) 노출 이벤트 감시 */
-                 kakao.maps.event.addListener(marker, 'click', function() {
-                   
-                   if (currentInfowindow) {
-                     currentInfowindow.close();
-                   }
-                   
-                   /* 정보창 객체를 인자로 받은 마커의 좌표 머리 위에 결합 활성화 */
-                   infowindow.open(map, marker); 
-                   currentInfowindow = infowindow; 
-                 });
-               }
-             }
-           });
-         }).catch((error) => {
-           console.error("데이터 로드 오류 발생: ", error); 
-         });
-
-       });
-     };
-   </script>
- </body>
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=49e85ecac915893ebe3e89efcd4d492c&autoload=false"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script> 
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script> 
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> 
+  <script src="./app.js"></script>  
+</body>
 </html>
