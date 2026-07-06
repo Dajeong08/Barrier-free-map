@@ -29,6 +29,10 @@ const deletePhotoBtn = document.getElementById("delete-photo-btn"); // 현재 �
 const placeForm = document.getElementById("place-form"); // 장소 등록 <form> 엘리먼트
 const nameInput = document.getElementById("place-name"); // 장소명 입력 필드
 const reasonInput = document.getElementById("place-reason"); // 등록 사유 입력 필드
+const placeSearchInput = document.getElementById("place-search-input"); // 장소 검색어 입력창
+const placeSearchBtn = document.getElementById("place-search-btn"); // 검색 버튼
+const placeSearchResults = document.getElementById("place-search-results"); // 검색 결과 목록 <ul>
+
 
 // 동적 데이터 관리를 위한 전역 변수 설정
 let selectedLatLng = null; // 지도에서 선택(우클릭)한 좌표 상태 값 (kakao.maps.LatLng)
@@ -36,6 +40,9 @@ let selectedPhotos = []; // 사용자가 업로드하기 위해 선택한 File �
 let currentPhotoIndex = 0; // 미리보기 이미지 노출 인덱스 
 let registerMenuOverlay = null; // 지도 위에 컨텍스트 메뉴를 띄우기 위한 커스텀 오버레이 인스턴스
 let currentInfoWindow = null; // 현재 지도상에 활성화된 인포윈도우 인스턴스
+let placesService = null; // 카카오 장소 검색 서비스 객체 (initMap에서 초기화)
+let searchResultMarkers = []; // 검색 결과로 지도에 표시된 마커들을 담아두는 배열 (다음 검색 때 지우기 위함)
+
 
 // 카카오 지도 API 로드 완료 시 초기화 함수(initMap) 실행
 kakao.maps.load(initMap);
@@ -126,7 +133,20 @@ function initMap() {
   // 등록 버튼 클릭 시 Firestore 저장 로직 실행
 
   loadSavedPlaces(map);
+
   // 초기 로드 시 데이터베이스에 저장된 기존 데이터 마커 표시
+  placesService = new kakao.maps.services.Places(map);
+  // 카카오 장소 검색 서비스 객체 생성 (이 지도 인스턴스 기준으로 검색)
+
+  placeSearchBtn.addEventListener("click", function () {
+    searchPlaces(map);
+  });
+  // 검색 버튼 클릭 시 검색 실행
+
+  placeSearchInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") searchPlaces(map);
+  });
+  // 입력창에서 엔터 쳤을 때도 검색 실행되도록 설정
 }
 
 function showRegisterMenu(map, latLng) {
@@ -411,4 +431,77 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")  // > 태그 클로저 치환
     .replace(/"/g, "&quot;") // HTML 속성 탈출 방지용 큰따옴표 치환
     .replace(/'/g, "&#039;"); // HTML 속성 탈출 방지용 작은따옴표 치환
+}
+
+function searchPlaces(map) {
+  // 입력된 검색어로 카카오 장소 검색을 실행하는 함수
+  const keyword = placeSearchInput.value.trim();
+  // 검색어 앞뒤 공백 제거
+
+  if (!keyword) return;
+  // 검색어가 비어있으면 실행하지 않음
+
+  placesService.keywordSearch(keyword, function (data, status) {
+    // 검색 완료 시 호출되는 콜백 함수
+    if (status !== kakao.maps.services.Status.OK) {
+      // 검색 결과가 없거나 에러인 경우
+      placeSearchResults.innerHTML = "<li class=\"place-result-item\">검색 결과가 없습니다.</li>";
+      return;
+    }
+
+    displaySearchResults(map, data);
+    // 검색 성공 시 결과 목록과 마커를 화면에 표시
+  });
+}
+
+function displaySearchResults(map, places) {
+  // 검색 결과를 목록(사이드바)과 지도(마커)에 표시하는 함수
+  clearSearchMarkers();
+  // 이전 검색에서 표시했던 마커들을 먼저 지도에서 제거
+
+  placeSearchResults.innerHTML = "";
+  // 이전 검색 결과 목록 비우기
+
+  places.forEach(function (place) {
+    // 검색 결과 하나하나를 순회하며 목록 항목과 마커를 생성
+    const position = new kakao.maps.LatLng(place.y, place.x);
+    // 카카오 검색 결과는 x=경도, y=위도 순서로 옴 (반대이니 주의)
+
+    const marker = new kakao.maps.Marker({
+      map, // 마커를 표시할 지도
+      position // 마커 위치
+    });
+    searchResultMarkers.push(marker);
+    // 나중에 지우기 위해 배열에 저장
+
+    const listItem = document.createElement("li");
+    listItem.className = "place-result-item";
+    listItem.innerHTML = `
+      <div class="place-result-name">${escapeHtml(place.place_name)}</div>
+      <div class="place-result-address">${escapeHtml(place.category_group_name || place.category_name)} · ${escapeHtml(place.road_address_name || place.address_name)}</div>
+    `;
+    // 목록 항목에 장소명, 카테고리, 주소를 표시 (escapeHtml로 XSS 방지)
+
+    listItem.addEventListener("click", function () {
+      // 목록 항목 클릭 시, 지도를 그 위치로 이동
+      map.panTo(position);
+      map.setLevel(3);
+      // 확대 레벨을 좀 더 가까이 조정
+    });
+
+    placeSearchResults.appendChild(listItem);
+  });
+
+  if (places.length > 0) {
+    map.panTo(new kakao.maps.LatLng(places[0].y, places[0].x));
+    // 첫 번째 결과 위치로 지도 중심 이동
+  }
+}
+
+function clearSearchMarkers() {
+  // 검색 결과로 표시했던 마커들을 지도에서 전부 제거하는 함수
+  searchResultMarkers.forEach(function (marker) {
+    marker.setMap(null);
+  });
+  searchResultMarkers = [];
 }

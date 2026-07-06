@@ -8,7 +8,13 @@
 </head>
 <body> 
   <div id="info-bar"></div> 
-  <div id="sidebar"></div> 
+  <div id="sidebar">
+    <div class="search-box">
+      <input id="place-search-input" type="text" placeholder="장소, 주소를 검색해보세요" />
+      <button id="place-search-btn" type="button">검색</button>
+    </div>
+    <ul id="place-search-results"></ul>
+  </div>
   <div id="map"></div> 
 
   <div id="register-menu" class="register-menu"> 
@@ -51,6 +57,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script> 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script> 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> 
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=49e85ecac915893ebe3e89efcd4d492c&libraries=services&autoload=false"></script>
   <script src="./app.js"></script>  
 </body>
 </html>
