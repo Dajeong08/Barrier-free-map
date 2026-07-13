@@ -7,6 +7,40 @@
   <link rel="stylesheet" href="./styles.css" /> 
 </head>
 <body> 
+
+  <div id="search-card">
+    <div class="search-card-header">
+      <div class="logo-placeholder logo-placeholder-lg"></div>
+      <button class="text-link-btn" type="button">로그인</button>
+    </div>
+
+    <div class="route-input-group">
+      <div class="route-input-wrapper">
+        <div class="route-input-row">
+          <span class="route-dot"></span>
+          <input id="route-start-input" type="text" class="route-text-input" placeholder="출발" autocomplete="off" />
+        </div>
+        <ul id="route-start-suggestions" class="route-suggestions"></ul>
+      </div>
+
+      <div class="route-input-wrapper">
+        <div class="route-input-row">
+          <span class="route-dot"></span>
+          <input id="route-end-input" type="text" class="route-text-input" placeholder="도착" autocomplete="off" />
+        </div>
+        <ul id="route-end-suggestions" class="route-suggestions"></ul>
+      </div>
+
+      <button id="swap-btn" class="swap-btn" type="button" aria-label="출발지와 도착지 바꾸기">
+        <span class="swap-icon">⇅</span>
+      </button>
+    </div>
+
+    <button id="find-route-btn" class="find-route-btn" type="button" disabled>
+      길찾기 <span class="arrow">›</span>
+    </button>
+  </div>
+
   <div id="info-bar"></div> 
   <div id="sidebar">
     <div class="search-box">
@@ -15,7 +49,12 @@
     </div>
     <ul id="place-search-results"></ul>
   </div>
+
   <div id="map"></div> 
+
+  <div id="filter-sheet">
+    <div class="sheet-handle"></div>
+  </div>
 
   <div id="register-menu" class="register-menu"> 
     <button id="open-form-btn" type="button">신규 장소 등록</button> 
@@ -42,7 +81,7 @@
       <input id="place-photo" type="file" accept="image/*" multiple /> 
 
       <label class="field">
-        <span>장소명 <em>(필수)</em></span> '
+        <span>장소명 <em>(필수)</em></span>
         <input id="place-name" type="text" placeholder="업체의 명칭을 입력해주세요." /> 
       </label>
 
