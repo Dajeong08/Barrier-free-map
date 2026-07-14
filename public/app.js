@@ -12,7 +12,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-const TMAP_APP_KEY = "여기에_발급받은_Tmap_appKey_입력"; // openapi.sk.com에서 발급
+const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZiNGNmNDE3MDI5ODQzNzc4M2ZmYzc2YTlmNzc1N2ZlIiwiaCI6Im11cm11cjY0In0="; // OpenRouteService API 키
 
 // DOM 요소 탐색 및 변수 할당
 const menuEl = document.getElementById("register-menu");
@@ -60,6 +60,8 @@ let routeStartMarker = null;
 let routeEndMarker = null;
 let routePolyline = null;
 let routeSearchDebounce = null;
+const HAZARD_DETECT_RADIUS_METERS = 60;
+const HAZARD_AVOID_RADIUS_METERS = 35;
 
 // 카카오 지도 API 로드 완료 시 초기화 함수(initMap) 실행
 kakao.maps.load(initMap);
@@ -424,7 +426,7 @@ function clearSearchMarkers() {
   searchResultMarkers = [];
 }
 
-// ===== 길찾기 (도보, Tmap 보행자 경로 API) =====
+// ===== 길찾기 (도보, OpenRouteService) =====
 
 function setupRouteInput(inputEl, listEl, target) {
   // 출발/도착 입력창에 타이핑할 때마다 카카오 키워드 검색으로 자동완성 목록을 보여주는 함수
@@ -524,8 +526,10 @@ function placeRouteMarker(target, point) {
 }
 
 function updateFindRouteButtonState() {
-  // 출발/도착이 둘 다 채워졌을 때만 "길찾기" 버튼 활성화
-  findRouteBtn.disabled = !(routeStartPoint && routeEndPoint);
+  // 좌표를 선택했거나, 입력창에 출발/도착이 모두 적혀 있으면 길찾기 버튼을 활성화합니다.
+  const hasStart = routeStartPoint || routeStartInput.value.trim();
+  const hasEnd = routeEndPoint || routeEndInput.value.trim();
+  findRouteBtn.disabled = !(hasStart && hasEnd);
 }
 
 function swapRoutePoints() {
@@ -546,70 +550,174 @@ function swapRoutePoints() {
 }
 
 async function searchPedestrianRoute() {
-  // Tmap 보행자 경로안내 API를 호출해 도보 경로를 조회하는 함수
-  if (!routeStartPoint || !routeEndPoint) return;
+  // OpenRouteService 보행자 경로 API를 호출해 도보 경로를 조회합니다.
+  await resolveTypedRouteInputs();
+
+  if (!routeStartPoint || !routeEndPoint) {
+    alert("출발지와 도착지를 검색 결과에서 선택해주세요.");
+    updateFindRouteButtonState();
+    return;
+  }
 
   findRouteBtn.disabled = true;
   findRouteBtn.textContent = "검색중...";
 
   try {
-    const response = await fetch("https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        appKey: TMAP_APP_KEY
-      },
-      body: JSON.stringify({
-        startX: routeStartPoint.lng,
-        startY: routeStartPoint.lat,
-        endX: routeEndPoint.lng,
-        endY: routeEndPoint.lat,
-        startName: routeStartPoint.name,
-        endName: routeEndPoint.name,
-        reqCoordType: "WGS84GEO",
-        resCoordType: "WGS84GEO",
-        searchOption: "0"
-      })
-    });
+    const data = await requestWalkingRoute();
+    const coordinates = getRouteCoordinates(data);
 
-    if (!response.ok) {
-      throw new Error("Tmap API 응답 오류: " + response.status);
+    if (coordinates.length === 0) {
+      clearRoutePolyline();
+      alert("도보 경로를 찾을 수 없습니다.");
+      return;
     }
 
-    const data = await response.json();
-    drawPedestrianRoute(data);
+    const hazard = await findHazardNearRoute(coordinates);
+
+    if (!hazard) {
+      drawRouteCoordinates(coordinates);
+      return;
+    }
+
+    try {
+      const safeData = await requestWalkingRoute(makeAvoidPolygon(hazard, HAZARD_AVOID_RADIUS_METERS));
+      const safeCoordinates = getRouteCoordinates(safeData);
+
+      if (safeCoordinates.length === 0) {
+        throw new Error("회피 경로 좌표가 비어 있습니다.");
+      }
+
+      drawRouteCoordinates(safeCoordinates);
+      alert(`경로 근처의 "${hazard.name}" 지점을 피해 안내합니다.`);
+    } catch (avoidError) {
+      console.error("위험 지점 회피 경로 검색 오류:", avoidError);
+      drawRouteCoordinates(coordinates);
+      alert(`"${hazard.name}" 지점이 경로 가까이에 있지만, 회피 경로를 찾지 못해 기본 경로를 표시합니다.`);
+    }
   } catch (error) {
-    console.error("보행자 경로 검색 오류:", error);
-    alert("경로를 찾는 중 오류가 발생했습니다.");
+    console.error("OpenRouteService 보행자 경로 검색 오류:", error);
+    clearRoutePolyline();
+    alert("길찾기 API 오류: " + error.message);
   } finally {
     findRouteBtn.disabled = false;
     findRouteBtn.innerHTML = '길찾기 <span class="arrow">›</span>';
   }
 }
 
-function drawPedestrianRoute(geojson) {
-  // Tmap 응답(GeoJSON)에서 좌표를 뽑아 지도에 폴리라인으로 그리는 함수
+async function requestWalkingRoute(avoidPolygon) {
+  const body = {
+    coordinates: [
+      [routeStartPoint.lng, routeStartPoint.lat],
+      [routeEndPoint.lng, routeEndPoint.lat]
+    ],
+    instructions: false
+  };
+
+  if (avoidPolygon) {
+    body.options = {
+      avoid_polygons: avoidPolygon
+    };
+  }
+
+  const response = await fetch("https://api.openrouteservice.org/v2/directions/foot-walking", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: ORS_API_KEY
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenRouteService 응답 오류: ${response.status} ${errorText}`);
+  }
+
+  return response.json();
+}
+
+function drawRouteCoordinates(coordinates) {
+  const path = coordinates.map(function (coordinate) {
+    return new kakao.maps.LatLng(coordinate[1], coordinate[0]);
+  });
+
+  if (path.length === 0) {
+    clearRoutePolyline();
+    alert("도보 경로를 찾을 수 없습니다.");
+    return;
+  }
+
+  drawRoutePath(path);
+}
+
+function getRouteCoordinates(response) {
+  if (response.features && response.features[0]?.geometry?.coordinates) {
+    return response.features[0].geometry.coordinates;
+  }
+
+  if (response.routes && response.routes[0]?.geometry?.coordinates) {
+    return response.routes[0].geometry.coordinates;
+  }
+
+  if (response.routes && typeof response.routes[0]?.geometry === "string") {
+    return decodePolyline(response.routes[0].geometry);
+  }
+
+  return [];
+}
+
+function decodePolyline(encoded) {
+  // ORS 기본 응답의 압축 polyline 문자열을 [경도, 위도] 좌표 배열로 바꿉니다.
+  const coordinates = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    const latResult = decodePolylineValue(encoded, index);
+    lat += latResult.value;
+    index = latResult.index;
+
+    const lngResult = decodePolylineValue(encoded, index);
+    lng += lngResult.value;
+    index = lngResult.index;
+
+    coordinates.push([lng / 100000, lat / 100000]);
+  }
+
+  return coordinates;
+}
+
+function decodePolylineValue(encoded, startIndex) {
+  let result = 0;
+  let shift = 0;
+  let index = startIndex;
+  let byte = 0;
+
+  do {
+    byte = encoded.charCodeAt(index) - 63;
+    index += 1;
+    result |= (byte & 0x1f) << shift;
+    shift += 5;
+  } while (byte >= 0x20);
+
+  return {
+    index,
+    value: result & 1 ? ~(result >> 1) : result >> 1
+  };
+}
+
+function clearRoutePolyline() {
   if (routePolyline) {
     routePolyline.setMap(null);
     routePolyline = null;
   }
+}
 
-  const path = [];
-
-  (geojson.features || []).forEach(function (feature) {
-    if (feature.geometry && feature.geometry.type === "LineString") {
-      feature.geometry.coordinates.forEach(function (coordinate) {
-        // Tmap 좌표는 [경도, 위도] 순서로 온다
-        path.push(new kakao.maps.LatLng(coordinate[1], coordinate[0]));
-      });
-    }
-  });
-
-  if (path.length === 0) {
-    alert("도보 경로를 찾을 수 없습니다.");
-    return;
-  }
+function drawRoutePath(path) {
+  // 지도에 이미 그려진 경로가 있으면 지우고, ORS가 준 실제 경로만 파란색으로 그립니다.
+  clearRoutePolyline();
 
   routePolyline = new kakao.maps.Polyline({
     map,
@@ -625,4 +733,142 @@ function drawPedestrianRoute(geojson) {
     bounds.extend(position);
   });
   map.setBounds(bounds);
+}
+
+async function findHazardNearRoute(routeCoordinates) {
+  // 지금은 Firebase에 등록된 모든 장소를 피해야 하는 위험 마커로 봅니다.
+  const hazards = await loadRouteHazards();
+
+  return hazards.find(function (hazard) {
+    return getDistanceFromHazardToRoute(hazard, routeCoordinates) <= HAZARD_DETECT_RADIUS_METERS;
+  });
+}
+
+async function loadRouteHazards() {
+  const hazards = [];
+
+  try {
+    const snapshot = await db.collection("places").get();
+
+    snapshot.forEach(function (doc) {
+      const place = doc.data();
+      if (!place.lat || !place.lng) return;
+
+      hazards.push({
+        name: place.name || "등록된 위험 지점",
+        lat: Number(place.lat),
+        lng: Number(place.lng)
+      });
+    });
+  } catch (error) {
+    console.error("위험 마커 로드 오류:", error);
+  }
+
+  return hazards;
+}
+
+function getDistanceFromHazardToRoute(hazard, routeCoordinates) {
+  let minDistance = Infinity;
+
+  for (let index = 0; index < routeCoordinates.length - 1; index += 1) {
+    const start = coordinateToPoint(routeCoordinates[index]);
+    const end = coordinateToPoint(routeCoordinates[index + 1]);
+    const distance = getDistanceFromPointToSegmentMeters(hazard, start, end);
+    minDistance = Math.min(minDistance, distance);
+  }
+
+  return minDistance;
+}
+
+function makeAvoidPolygon(hazard, radiusMeters) {
+  // ORS avoid_polygons는 원이 아니라 다각형을 받으므로, 작은 원을 16각형으로 근사합니다.
+  const ring = [];
+  const steps = 16;
+
+  for (let index = 0; index <= steps; index += 1) {
+    const angle = (Math.PI * 2 * index) / steps;
+    const latOffset = (Math.sin(angle) * radiusMeters) / 111320;
+    const lngOffset = (Math.cos(angle) * radiusMeters) / (111320 * Math.cos((hazard.lat * Math.PI) / 180));
+    ring.push([hazard.lng + lngOffset, hazard.lat + latOffset]);
+  }
+
+  return {
+    type: "Polygon",
+    coordinates: [ring]
+  };
+}
+
+function coordinateToPoint(coordinate) {
+  return {
+    lng: coordinate[0],
+    lat: coordinate[1]
+  };
+}
+
+function getDistanceFromPointToSegmentMeters(point, start, end) {
+  const x = point.lng;
+  const y = point.lat;
+  const x1 = start.lng;
+  const y1 = start.lat;
+  const x2 = end.lng;
+  const y2 = end.lat;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) {
+    return getDistanceMeters(point, start);
+  }
+
+  const ratio = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / lengthSquared));
+  const nearest = {
+    lng: x1 + ratio * dx,
+    lat: y1 + ratio * dy
+  };
+
+  return getDistanceMeters(point, nearest);
+}
+
+function getDistanceMeters(a, b) {
+  const latMeters = (a.lat - b.lat) * 111320;
+  const lngMeters = (a.lng - b.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180);
+  return Math.sqrt(latMeters * latMeters + lngMeters * lngMeters);
+}
+
+async function resolveTypedRouteInputs() {
+  // 사용자가 자동완성 목록을 클릭하지 않고 바로 길찾기를 누른 경우를 보완합니다.
+  if (!routeStartPoint && routeStartInput.value.trim()) {
+    routeStartPoint = await searchFirstPlace(routeStartInput.value.trim(), "start");
+  }
+
+  if (!routeEndPoint && routeEndInput.value.trim()) {
+    routeEndPoint = await searchFirstPlace(routeEndInput.value.trim(), "end");
+  }
+}
+
+function searchFirstPlace(keyword, target) {
+  return new Promise(function (resolve) {
+    placesService.keywordSearch(keyword, function (data, status) {
+      if (status !== kakao.maps.services.Status.OK || data.length === 0) {
+        resolve(null);
+        return;
+      }
+
+      const place = data[0];
+      const point = {
+        lat: Number(place.y),
+        lng: Number(place.x),
+        name: place.place_name
+      };
+
+      if (target === "start") {
+        routeStartInput.value = place.place_name;
+      } else {
+        routeEndInput.value = place.place_name;
+      }
+
+      placeRouteMarker(target, point);
+      resolve(point);
+    });
+  });
 }
