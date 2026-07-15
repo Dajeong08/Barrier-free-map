@@ -8,53 +8,58 @@
 </head>
 <body> 
 
-  <div id="search-card">
-    <div class="search-card-header">
-      <div class="logo-placeholder logo-placeholder-lg"></div>
-      <button class="text-link-btn" type="button">로그인</button>
-    </div>
+  <!-- 로고/로그인: 모바일·PC 공통 상단 바 (레이아웃은 CSS 미디어쿼리로만 전환) -->
+  <header id="topbar">
+    <div class="logo-placeholder logo-placeholder-lg"></div>
+    <button class="text-link-btn" type="button">로그인</button>
+  </header>
 
-    <div class="route-input-group">
-      <div class="route-input-wrapper">
-        <div class="route-input-row">
-          <span class="route-dot"></span>
-          <input id="route-start-input" type="text" class="route-text-input" placeholder="출발" autocomplete="off" />
+  <!-- 검색+필터 패널: 모바일에서는 위/아래로 분리되어 보이고, PC에서는 오른쪽 사이드바 하나로 합쳐짐 -->
+  <div id="app-panel">
+    <div id="search-card">
+      <div class="route-input-group">
+        <div class="route-input-wrapper">
+          <div class="route-input-row">
+            <span class="route-dot"></span>
+            <input id="route-start-input" type="text" class="route-text-input" placeholder="출발" autocomplete="off" />
+          </div>
+          <ul id="route-start-suggestions" class="route-suggestions"></ul>
         </div>
-        <ul id="route-start-suggestions" class="route-suggestions"></ul>
+
+        <div class="route-input-wrapper">
+          <div class="route-input-row">
+            <span class="route-dot"></span>
+            <input id="route-end-input" type="text" class="route-text-input" placeholder="도착" autocomplete="off" />
+          </div>
+          <ul id="route-end-suggestions" class="route-suggestions"></ul>
+        </div>
+
+        <button id="swap-btn" class="swap-btn" type="button" aria-label="출발지와 도착지 바꾸기">
+          <span class="swap-icon">⇅</span>
+        </button>
       </div>
 
-      <div class="route-input-wrapper">
-        <div class="route-input-row">
-          <span class="route-dot"></span>
-          <input id="route-end-input" type="text" class="route-text-input" placeholder="도착" autocomplete="off" />
-        </div>
-        <ul id="route-end-suggestions" class="route-suggestions"></ul>
-      </div>
-
-      <button id="swap-btn" class="swap-btn" type="button" aria-label="출발지와 도착지 바꾸기">
-        <span class="swap-icon">⇅</span>
+      <button id="find-route-btn" class="find-route-btn" type="button" disabled>
+        길찾기 <span class="arrow">›</span>
       </button>
     </div>
 
-    <button id="find-route-btn" class="find-route-btn" type="button" disabled>
-      길찾기 <span class="arrow">›</span>
-    </button>
-  </div>
-
-  <div id="info-bar"></div> 
-  <div id="sidebar">
-    <div class="search-box">
-      <input id="place-search-input" type="text" placeholder="장소, 주소를 검색해보세요" />
-      <button id="place-search-btn" type="button">검색</button>
+    <div id="info-bar"></div>
+    <div id="sidebar">
+      <div class="search-box">
+        <input id="place-search-input" type="text" placeholder="장소, 주소를 검색해보세요" />
+        <button id="place-search-btn" type="button">검색</button>
+      </div>
+      <ul id="place-search-results"></ul>
     </div>
-    <ul id="place-search-results"></ul>
+
+    <!-- 마커 종류별 필터: 다음 작업에서 채울 자리, 지금은 비워둠 -->
+    <div id="filter-sheet">
+      <div class="sheet-handle"></div>
+    </div>
   </div>
 
-  <div id="map"></div> 
-
-  <div id="filter-sheet">
-    <div class="sheet-handle"></div>
-  </div>
+  <div id="map"></div>
 
   <div id="register-menu" class="register-menu"> 
     <button id="open-form-btn" type="button">신규 장소 등록</button> 

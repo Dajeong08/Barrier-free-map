@@ -12,7 +12,8 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZiNGNmNDE3MDI5ODQzNzc4M2ZmYzc2YTlmNzc1N2ZlIiwiaCI6Im11cm11cjY0In0="; // OpenRouteService API 키
+const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZiNGNmNDE3MDI5ODQzNzc4M2ZmYzc2YTlmNzc1N2ZlIiwiaCI6Im11cm11cjY0In0="; // OpenRouteService API 키 (위험지점 회피용, avoid_polygons 지원)
+const TMAP_APP_KEY = "1J5KkitZChKc1Qfl5U3U8IJyDkqLojt3gDGrtYbh"; // TMAP 보행자 경로 API 키 (openapi.sk.com > 앱키(appKey) 탭에서 확인)
 
 // DOM 요소 탐색 및 변수 할당
 const menuEl = document.getElementById("register-menu");
@@ -60,8 +61,9 @@ let routeStartMarker = null;
 let routeEndMarker = null;
 let routePolyline = null;
 let routeSearchDebounce = null;
-const HAZARD_DETECT_RADIUS_METERS = 60;
+const HAZARD_DETECT_RADIUS_METERS = 20;
 const HAZARD_AVOID_RADIUS_METERS = 35;
+const TMAP_DETOUR_TRY_LIMIT = 8;
 
 // 카카오 지도 API 로드 완료 시 초기화 함수(initMap) 실행
 kakao.maps.load(initMap);
@@ -550,7 +552,7 @@ function swapRoutePoints() {
 }
 
 async function searchPedestrianRoute() {
-  // OpenRouteService 보행자 경로 API를 호출해 도보 경로를 조회합니다.
+  // 평소 경로는 TMAP 보행자 경로 API로 구합니다 (인도/횡단보도 데이터가 있어서 더 자연스러움).
   await resolveTypedRouteInputs();
 
   if (!routeStartPoint || !routeEndPoint) {
@@ -563,8 +565,8 @@ async function searchPedestrianRoute() {
   findRouteBtn.textContent = "검색중...";
 
   try {
-    const data = await requestWalkingRoute();
-    const coordinates = getRouteCoordinates(data);
+    const tmapData = await requestTmapPedestrianRoute();
+    const coordinates = getTmapRouteCoordinates(tmapData);
 
     if (coordinates.length === 0) {
       clearRoutePolyline();
@@ -579,23 +581,38 @@ async function searchPedestrianRoute() {
       return;
     }
 
+    // TMAP은 특정 구역을 피해가는 기능이 없어서, 위험지점을 피해야 할 때만 ORS(avoid_polygons 지원)를 씁니다.
+    // 위험지점이 출발지나 도착지 바로 위에 있으면 애초에 피해갈 방법이 없으니 ORS를 시도하지 않습니다.
+    const hazardBlocksEndpoint =
+      getDistanceMeters(hazard, routeStartPoint) <= HAZARD_AVOID_RADIUS_METERS ||
+      getDistanceMeters(hazard, routeEndPoint) <= HAZARD_AVOID_RADIUS_METERS;
+
+    if (hazardBlocksEndpoint) {
+      drawRouteCoordinates(coordinates);
+      alert(`"${hazard.name}" 지점이 출발지/도착지 바로 근처라 피해갈 수 없어 기본 경로를 표시합니다.`);
+      return;
+    }
+
     try {
-      const safeData = await requestWalkingRoute(makeAvoidPolygon(hazard, HAZARD_AVOID_RADIUS_METERS));
-      const safeCoordinates = getRouteCoordinates(safeData);
+      const safeData = await requestOrsAvoidRoute(makeAvoidPolygon(hazard, HAZARD_AVOID_RADIUS_METERS));
+      const safeCoordinates = getOrsRouteCoordinates(safeData);
 
       if (safeCoordinates.length === 0) {
+        console.error("ORS 회피 경로 응답 (좌표를 못 찾음):", safeData);
         throw new Error("회피 경로 좌표가 비어 있습니다.");
       }
 
-      drawRouteCoordinates(safeCoordinates);
-      alert(`경로 근처의 "${hazard.name}" 지점을 피해 안내합니다.`);
+      const tmapSafeCoordinates = await requestTmapRouteAvoidingHazard(safeCoordinates, hazard);
+
+      drawRouteCoordinates(tmapSafeCoordinates);
+      alert(`경로 근처의 "${hazard.name}" 지점을 피하도록 TMAP 경로를 다시 안내합니다.`);
     } catch (avoidError) {
       console.error("위험 지점 회피 경로 검색 오류:", avoidError);
       drawRouteCoordinates(coordinates);
       alert(`"${hazard.name}" 지점이 경로 가까이에 있지만, 회피 경로를 찾지 못해 기본 경로를 표시합니다.`);
     }
   } catch (error) {
-    console.error("OpenRouteService 보행자 경로 검색 오류:", error);
+    console.error("TMAP 보행자 경로 검색 오류:", error);
     clearRoutePolyline();
     alert("길찾기 API 오류: " + error.message);
   } finally {
@@ -604,29 +621,72 @@ async function searchPedestrianRoute() {
   }
 }
 
-async function requestWalkingRoute(avoidPolygon) {
-  const body = {
-    coordinates: [
-      [routeStartPoint.lng, routeStartPoint.lat],
-      [routeEndPoint.lng, routeEndPoint.lat]
-    ],
-    instructions: false
-  };
-
-  if (avoidPolygon) {
-    body.options = {
-      avoid_polygons: avoidPolygon
-    };
-  }
-
-  const response = await fetch("https://api.openrouteservice.org/v2/directions/foot-walking", {
+async function requestTmapPedestrianRoute() {
+  const response = await fetch("https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1", {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      appKey: TMAP_APP_KEY
+    },
+    body: JSON.stringify({
+      startX: String(routeStartPoint.lng),
+      startY: String(routeStartPoint.lat),
+      endX: String(routeEndPoint.lng),
+      endY: String(routeEndPoint.lat),
+      startName: encodeURIComponent(routeStartPoint.name || "출발"),
+      endName: encodeURIComponent(routeEndPoint.name || "도착"),
+      reqCoordType: "WGS84GEO",
+      resCoordType: "WGS84GEO",
+      searchOption: "0" // 0: 추천 경로 (계단/경사로 등 옵션은 추후 마커 종류 구분할 때 여기서 조정)
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`TMAP 응답 오류: ${response.status} ${errorText}`);
+  }
+
+  return response.json();
+}
+
+function getTmapRouteCoordinates(response) {
+  // TMAP은 경로를 구간(feature)별로 잘게 나눠서 GeoJSON으로 돌려줍니다.
+  // LineString 구간들만 순서대로 이어붙이면 전체 경로 좌표가 됩니다.
+  if (!response.features) return [];
+
+  const coordinates = [];
+
+  response.features.forEach(function (feature) {
+    if (feature.geometry?.type !== "LineString") return;
+
+    feature.geometry.coordinates.forEach(function (coordinate) {
+      coordinates.push(coordinate);
+    });
+  });
+
+  return coordinates;
+}
+
+async function requestOrsAvoidRoute(avoidPolygon) {
+  // 위험지점을 피해야 할 때만 쓰는 경로. ORS만 avoid_polygons를 지원해서 이 경우엔 ORS를 씁니다.
+  const response = await fetch("https://api.openrouteservice.org/v2/directions/foot-walking/geojson", {
+    method: "POST",
+    headers: {
+      Accept: "application/geo+json",
+      "Content-Type": "application/json",
       Authorization: ORS_API_KEY
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      coordinates: [
+        [routeStartPoint.lng, routeStartPoint.lat],
+        [routeEndPoint.lng, routeEndPoint.lat]
+      ],
+      instructions: false,
+      options: {
+        avoid_polygons: avoidPolygon
+      }
+    })
   });
 
   if (!response.ok) {
@@ -651,60 +711,109 @@ function drawRouteCoordinates(coordinates) {
   drawRoutePath(path);
 }
 
-function getRouteCoordinates(response) {
-  if (response.features && response.features[0]?.geometry?.coordinates) {
-    return response.features[0].geometry.coordinates;
-  }
-
-  if (response.routes && response.routes[0]?.geometry?.coordinates) {
-    return response.routes[0].geometry.coordinates;
-  }
-
-  if (response.routes && typeof response.routes[0]?.geometry === "string") {
-    return decodePolyline(response.routes[0].geometry);
-  }
-
-  return [];
+function getOrsRouteCoordinates(response) {
+  return response.features?.[0]?.geometry?.coordinates || [];
 }
 
-function decodePolyline(encoded) {
-  // ORS 기본 응답의 압축 polyline 문자열을 [경도, 위도] 좌표 배열로 바꿉니다.
-  const coordinates = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
+async function requestTmapRouteViaPoint(detourPoint) {
+  // TMAP 보행자 API에는 avoid_polygons가 없으므로, 회피 경로에서 뽑은 경유지를 기준으로
+  // 출발->경유지, 경유지->도착을 각각 TMAP으로 요청한 뒤 하나의 경로처럼 이어붙입니다.
+  const originalEndPoint = routeEndPoint;
+  const originalStartPoint = routeStartPoint;
+  let firstLeg = [];
+  let secondLeg = [];
 
-  while (index < encoded.length) {
-    const latResult = decodePolylineValue(encoded, index);
-    lat += latResult.value;
-    index = latResult.index;
+  try {
+    routeEndPoint = detourPoint;
+    firstLeg = getTmapRouteCoordinates(await requestTmapPedestrianRoute());
 
-    const lngResult = decodePolylineValue(encoded, index);
-    lng += lngResult.value;
-    index = lngResult.index;
-
-    coordinates.push([lng / 100000, lat / 100000]);
+    routeStartPoint = detourPoint;
+    routeEndPoint = originalEndPoint;
+    secondLeg = getTmapRouteCoordinates(await requestTmapPedestrianRoute());
+  } finally {
+    routeStartPoint = originalStartPoint;
+    routeEndPoint = originalEndPoint;
   }
 
-  return coordinates;
+  if (firstLeg.length === 0 || secondLeg.length === 0) {
+    throw new Error("TMAP 경유 경로 좌표가 비어 있습니다.");
+  }
+
+  return firstLeg.concat(secondLeg.slice(1));
 }
 
-function decodePolylineValue(encoded, startIndex) {
-  let result = 0;
-  let shift = 0;
-  let index = startIndex;
-  let byte = 0;
+async function requestTmapRouteAvoidingHazard(safeCoordinates, hazard) {
+  const candidates = getDetourCandidates(safeCoordinates, hazard);
 
-  do {
-    byte = encoded.charCodeAt(index) - 63;
-    index += 1;
-    result |= (byte & 0x1f) << shift;
-    shift += 5;
-  } while (byte >= 0x20);
+  for (const detourPoint of candidates) {
+    const tmapCoordinates = await requestTmapRouteViaPoint(detourPoint);
+    const distance = getDistanceFromHazardToRoute(hazard, tmapCoordinates);
+
+    if (distance > HAZARD_DETECT_RADIUS_METERS) {
+      return tmapCoordinates;
+    }
+  }
+
+  throw new Error("TMAP 경유 경로가 여전히 위험 지점 근처를 지나갑니다.");
+}
+
+function getDetourCandidates(routeCoordinates, hazard) {
+  // 위험 지점 주변을 실제로 우회하게 만들기 위해, ORS 회피 경로 위의 여러 점을 TMAP 경유 후보로 씁니다.
+  // 너무 먼 점 하나보다, 위험 지점 근처지만 회피 반경 밖에 있는 점들이 TMAP을 더 잘 꺾어줍니다.
+  const minDistance = HAZARD_AVOID_RADIUS_METERS + 10;
+  const maxDistance = 350;
+  const startIndex = Math.floor(routeCoordinates.length * 0.15);
+  const endIndex = Math.ceil(routeCoordinates.length * 0.85);
+  const candidates = [];
+
+  for (let index = startIndex; index < endIndex; index += 1) {
+    const coordinate = routeCoordinates[index];
+    const point = coordinateToPoint(coordinate);
+    const distance = getDistanceMeters(point, hazard);
+
+    if (distance >= minDistance && distance <= maxDistance) {
+      candidates.push({
+        lat: point.lat,
+        lng: point.lng,
+        name: "우회 지점",
+        distance
+      });
+    }
+  }
+
+  candidates.sort(function (a, b) {
+    return a.distance - b.distance;
+  });
+
+  if (candidates.length === 0) {
+    candidates.push(pickDetourPoint(routeCoordinates, hazard));
+  }
+
+  return candidates.slice(0, TMAP_DETOUR_TRY_LIMIT);
+}
+
+function pickDetourPoint(routeCoordinates, hazard) {
+  // ORS 회피 경로 중 위험 지점과 가장 멀리 떨어진 지점을 TMAP 경유지로 사용합니다.
+  // 출발/도착 바로 근처 좌표는 피해서 TMAP 경로가 지나치게 짧게 쪼개지지 않게 합니다.
+  let bestCoordinate = routeCoordinates[Math.floor(routeCoordinates.length / 2)];
+  let bestDistance = -1;
+  const startIndex = Math.floor(routeCoordinates.length * 0.2);
+  const endIndex = Math.ceil(routeCoordinates.length * 0.8);
+
+  for (let index = startIndex; index < endIndex; index += 1) {
+    const point = coordinateToPoint(routeCoordinates[index]);
+    const distance = getDistanceMeters(point, hazard);
+
+    if (distance > bestDistance) {
+      bestDistance = distance;
+      bestCoordinate = routeCoordinates[index];
+    }
+  }
 
   return {
-    index,
-    value: result & 1 ? ~(result >> 1) : result >> 1
+    lat: bestCoordinate[1],
+    lng: bestCoordinate[0],
+    name: "우회 지점"
   };
 }
 
@@ -716,7 +825,7 @@ function clearRoutePolyline() {
 }
 
 function drawRoutePath(path) {
-  // 지도에 이미 그려진 경로가 있으면 지우고, ORS가 준 실제 경로만 파란색으로 그립니다.
+  // 지도에 이미 그려진 경로가 있으면 지우고, 계산된 보행자 경로를 파란색으로 그립니다.
   clearRoutePolyline();
 
   routePolyline = new kakao.maps.Polyline({
