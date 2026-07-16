@@ -98,6 +98,9 @@ function initMap() {
     showRegisterMenu(map, selectedLatLng);
   });
 
+  // 마커가 아닌 지도의 빈 곳을 클릭하면 열려있던 정보창을 닫습니다.
+  kakao.maps.event.addListener(map, "click", closeInfoWindow);
+
   kakao.maps.event.addListener(map, "dragend", function () {
     if (!pocheonBounds.contain(map.getCenter())) {
       map.panTo(pocheonCenter);
@@ -151,6 +154,12 @@ function initMap() {
     if (!event.target.closest(".route-input-wrapper")) {
       hideSuggestions(routeStartSuggestions);
       hideSuggestions(routeEndSuggestions);
+    }
+
+    // 지도 바깥(검색창, 상단바 등)을 클릭하면 열려있던 정보창을 닫습니다.
+    // 지도 안쪽 클릭이나 정보창 자체(카카오맵이 #map 바깥에 그릴 수도 있어서 따로 체크) 클릭은 건드리지 않습니다.
+    if (!event.target.closest("#map") && !event.target.closest(".place-info-window")) {
+      closeInfoWindow();
     }
   });
 }
@@ -288,10 +297,40 @@ async function savePlace() {
     location.reload();
   } catch (error) {
     console.error("장소 등록 오류:", error);
-    alert("장소 등록 중 오류가 발생했습니다.");
+    alert("장소 등록 중 오류가 발생했습니다: " + error.message);
     saveBtn.disabled = false;
     saveBtn.textContent = "등록";
   }
+}
+
+function uploadSinglePhoto(photo, photoPath) {
+  // storage.ref().put()이 CORS/보안규칙 문제로 응답을 못 받으면 계속 대기 상태로 남을 수 있어서,
+  // 업로드 진행 상태를 직접 구독해서 에러가 나면 바로 알아내고, 30초 넘게 안 끝나면 타임아웃 처리합니다.
+  return new Promise(function (resolve, reject) {
+    const uploadTask = storage.ref(photoPath).put(photo);
+
+    const timeoutId = setTimeout(function () {
+      reject(new Error("업로드 시간 초과(30초). Firebase Storage 규칙/설정을 확인해주세요."));
+    }, 30000);
+
+    uploadTask.on(
+      "state_changed",
+      null,
+      function (error) {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+      async function () {
+        clearTimeout(timeoutId);
+        try {
+          const photoUrl = await uploadTask.snapshot.ref.getDownloadURL();
+          resolve(photoUrl);
+        } catch (error) {
+          reject(error);
+        }
+      }
+    );
+  });
 }
 
 async function uploadPhotos() {
@@ -304,8 +343,7 @@ async function uploadPhotos() {
     const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const photoPath = `place-proposals/${Date.now()}-${index}-${safeName}`;
 
-    const snapshot = await storage.ref(photoPath).put(photo);
-    const photoUrl = await snapshot.ref.getDownloadURL();
+    const photoUrl = await uploadSinglePhoto(photo, photoPath);
 
     photos.push({
       photoName: photo.name,
@@ -337,12 +375,12 @@ async function loadSavedPlaces(map) {
       position: new kakao.maps.LatLng(Number(place.lat), Number(place.lng))
     });
 
-    const infoWindow = new kakao.maps.InfoWindow({
-      content: makeInfoWindowContent(place)
-    });
+    const infoWindow = new kakao.maps.InfoWindow({});
 
     kakao.maps.event.addListener(marker, "click", function () {
       closeInfoWindow();
+      currentInfoWindowPlace = place;
+      infoWindow.setContent(makeInfoWindowContent(place));
       infoWindow.open(map, marker);
       currentInfoWindow = infoWindow;
     });
@@ -355,13 +393,54 @@ function closeInfoWindow() {
   currentInfoWindow = null;
 }
 
-function makeInfoWindowContent(place) {
+let infoWindowPhotos = [];
+let infoWindowPhotoIndex = 0;
+let currentInfoWindowPlace = null;
+
+function makeInfoWindowContent(place, photoIndex) {
+  const photos = place.photos && place.photos.length > 0 ? place.photos : place.photoUrl ? [{ photoUrl: place.photoUrl }] : [];
+  const index = photoIndex && photoIndex < photos.length ? photoIndex : 0;
+
+  infoWindowPhotos = photos;
+  infoWindowPhotoIndex = index;
+
+  const photoHtml = photos.length > 0 ? makeInfoWindowPhotoHtml(photos, index) : "";
+
   return `
-    <div style="padding:8px; font-size:12px; color:#333; min-width:160px; max-width:220px;">
+    <div class="place-info-window" style="padding:8px; font-size:12px; color:#333; min-width:160px; max-width:220px;">
+      ${photoHtml}
       <strong>${escapeHtml(place.name)}</strong>
       ${place.reason ? `<div style="margin-top:5px; line-height:1.35;">${escapeHtml(place.reason)}</div>` : ""}
     </div>
   `;
+}
+
+function makeInfoWindowPhotoHtml(photos, index) {
+  // 사진이 여러 장이면 좌우 화살표와 "1/3" 같은 카운터를 같이 그립니다.
+  const photo = photos[index];
+  const showControls = photos.length > 1;
+
+  return `
+    <div style="position:relative; margin-bottom:6px;">
+      <img src="${escapeHtml(photo.photoUrl)}" alt="장소 사진" style="display:block; width:100%; height:140px; object-fit:cover; border-radius:6px;" />
+      ${
+        showControls
+          ? `
+        <button type="button" onclick="changeInfoWindowPhoto(-1)" aria-label="이전 사진" style="position:absolute; top:50%; left:4px; transform:translateY(-50%); border:0; border-radius:999px; background:rgba(0,0,0,0.45); color:#fff; width:24px; height:24px; cursor:pointer;">‹</button>
+        <button type="button" onclick="changeInfoWindowPhoto(1)" aria-label="다음 사진" style="position:absolute; top:50%; right:4px; transform:translateY(-50%); border:0; border-radius:999px; background:rgba(0,0,0,0.45); color:#fff; width:24px; height:24px; cursor:pointer;">›</button>
+        <span style="position:absolute; right:6px; bottom:6px; padding:2px 6px; border-radius:999px; background:rgba(0,0,0,0.55); color:#fff; font-size:10px;">${index + 1}/${photos.length}</span>
+      `
+          : ""
+      }
+    </div>
+  `;
+}
+
+function changeInfoWindowPhoto(direction) {
+  if (!currentInfoWindow || !currentInfoWindowPlace || infoWindowPhotos.length === 0) return;
+
+  const nextIndex = (infoWindowPhotoIndex + direction + infoWindowPhotos.length) % infoWindowPhotos.length;
+  currentInfoWindow.setContent(makeInfoWindowContent(currentInfoWindowPlace, nextIndex));
 }
 
 function escapeHtml(value) {
