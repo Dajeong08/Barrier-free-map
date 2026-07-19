@@ -4,187 +4,151 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
+  font-family: sans-serif;
 }
 
 #map {
   width: 100%; 
   height: 100vh;  
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
 }
 
-#info-bar,
-#sidebar {
+/* --------------------------------------------------------
+   📱 [모바일 기본 설정 - 컴팩트형 크기 유지] 
+-------------------------------------------------------- */
+
+#pc-topbar {
   display: none;
 }
 
-/* 로고 + 로그인: 모바일/PC 공통 상단 바. 안의 내용은 그대로 두고
-   레이아웃(위치/크기)만 미디어쿼리로 바꾼다 */
-#topbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 25;
-  height: 56px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  background: #fff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-}
-
-/* 검색카드 + 필터시트를 묶는 래퍼. 모바일에서는 자체 스타일이 없고
-   (자식들이 각자 fixed로 위/아래에 붙음), PC에서는 이 래퍼 자체가
-   오른쪽 사이드바가 된다 */
-#app-panel {
-  z-index: 20;
-}
-
-#search-card {
-  position: fixed;
-  top: 56px; /* topbar 높이만큼 아래로 */
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  width: 100%;
-  max-width: 480px;
-  box-sizing: border-box;
-  padding: 16px;
-  background: #fff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-}
-
-.logo-placeholder {
-  background: #fff;
-}
-
-.logo-placeholder-lg {
-  width: 140px;
-  height: 32px;
+.logo-box-placeholder {
+  width: 110px;
+  height: 28px;
+  background-color: #cbd5e1;
+  border-radius: 4px;
 }
 
 .text-link-btn {
   border: 0;
   background: transparent;
-  color: #6b7280;
+  color: #4b5563;
   font-size: 13px;
+  font-weight: bold;
   cursor: pointer;
+}
+
+#app-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+#search-card, 
+#filter-sheet {
+  pointer-events: auto;
+}
+
+/* 모바일 상단 길찾기 카드 짜부 유지 */
+#search-card {
+  width: 100%;
+  background: #f8fafc;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.mobile-card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .route-input-group {
   position: relative;
-  margin-bottom: 14px;
+  margin-bottom: 2px;
 }
 
 .route-input-wrapper {
   position: relative;
-  margin-bottom: 8px;
-}
-
-.route-input-wrapper:last-of-type {
-  margin-bottom: 0;
+  margin-bottom: 4px;
 }
 
 .route-input-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 44px 12px 14px;
-  background: #e0e0e0;
-  border-radius: 16px;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #e2e8f0; 
+  border-radius: 6px;
 }
 
 .route-dot {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #fff;
+  border: 2px solid #cbd5e1;
 }
 
 .route-text-input {
   flex: 1;
   border: 0;
   background: transparent;
-  font-size: 14px;
-  color: #374151;
-}
-
-.route-text-input::placeholder {
-  color: #6b7280;
-}
-
-.route-suggestions {
-  display: none;
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 30;
-  max-height: 220px;
-  margin: 0;
-  padding: 4px;
-  list-style: none;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-  overflow-y: auto;
-  box-sizing: border-box;
-}
-
-.route-suggestion-item {
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.route-suggestion-item:hover {
-  background: #f5f7fa;
-}
-
-.route-suggestion-name {
   font-size: 13px;
-  font-weight: 700;
-  color: #111827;
+  outline: none;
 }
 
-.route-suggestion-address {
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 2px;
+.icon-box-placeholder {
+  width: 20px;
+  height: 20px;
+  background-color: #cbd5e1;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .swap-btn {
   position: absolute;
   top: 50%;
-  right: 8px;
+  right: -6px;
   transform: translateY(-50%);
   width: 32px;
   height: 32px;
   border: 0;
   background: transparent;
   cursor: pointer;
-  z-index: 5;
 }
 
 .swap-icon {
   font-size: 18px;
-  color: #111827;
+  color: #1e293b;
+}
+
+.search-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
 }
 
 .find-route-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 16px;
+  padding: 6px 14px;
   border: 0;
-  border-radius: 8px;
-  background: #d9d9d9;
-  color: #111827;
-  font-size: 14px;
-  font-weight: 700;
+  border-radius: 4px;
+  background: #cbd5e1;
+  color: #1e293b;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -194,318 +158,212 @@ body {
   cursor: not-allowed;
 }
 
-.find-route-btn .arrow {
-  font-size: 15px;
+.inline-current-btn {
+  background: transparent;
+  border: 0;
+  color: #2563eb;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
 }
 
+/* 모바일 하단 마커 설명 시트 짜부 유지 */
 #filter-sheet {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  z-index: 20;
   width: 100%;
-  max-width: 480px;
-  min-height: 80px;
-  padding: 10px 20px 24px;
-  background: #fff;
-  border-radius: 20px 20px 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.1);
+  background: #f8fafc;
+  border-radius: 16px 16px 0 0;
+  padding: 8px 16px 16px;
   box-sizing: border-box;
+  box-shadow: 0 -4px 15px rgba(0,0,0,0.08);
 }
 
 .sheet-handle {
   width: 40px;
   height: 4px;
-  margin: 0 auto;
+  margin: 0 auto 8px;
   border-radius: 999px;
-  background: #d1d5db;
+  background: #cbd5e1;
 }
 
-.register-menu {
-  display: none;
-  transform: translate(12px, -8px);
-  overflow: hidden;
-  background: #fff;
-  border: 1px solid #d9dfe8;
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-}
-
-.register-menu button {
-  border: 0;
-  padding: 10px 14px;
-  background: #fff;
-  color: #1f2937;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.register-modal {
-  display: none;
-  position: absolute;
-  top: 50%; 
-  left: 50%;
-  z-index: 40;
-  width: min(400px, calc(100vw - 28px));
-  max-height: calc(100vh - 28px);
-  overflow: auto;
-  transform: translate(-50%, -50%);
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: grid;
-  grid-template-columns: 64px 1fr 64px;
-  align-items: center;
-  height: 52px;
-  padding: 0 16px;
-  border-bottom: 1px solid #edf0f5;
-}
-
-.modal-header h1 {
-  margin: 0;
-  font-size: 17px;
-  text-align: center;
-}
-
-.modal-header button {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font-size: 15px;
-}
-
-#cancel-btn {
-  text-align: left;
-}
-
-#save-btn {
-  color: #2563eb;
-  font-weight: 700;
-  text-align: right;
-}
-
-#save-btn:disabled {
-  color: #b7beca;
-}
-
-.modal-body {
-  padding: 18px 16px 20px;
-}
-
-.photo-box {
+.mobile-filter-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  position: relative;
-  min-height: 206px;
-  margin-bottom: 24px;
-  padding: 18px;
-  border: 1px dashed #cdd4df;
-  border-radius: 8px;
-  box-sizing: border-box;
-  cursor: pointer;
-  text-align: center;
+  margin-bottom: 12px;
 }
 
-#place-photo {
-  display: none;
-}
-
-#photo-preview {
-  display: none;
-  width: 100%;
-  max-height: 210px;
-  object-fit: cover;
-  border-radius: 6px;
-}
-
-.photo-controls {
-  display: none;
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: #fff;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-}
-
-.photo-controls button {
-  border: 0;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-}
-
-#prev-photo-btn,
-#next-photo-btn {
-  width: 30px;
-  height: 30px;
-}
-
-#delete-photo-btn {
-  position: absolute;
-  right: 0;
-  padding: 7px 10px;
-  font-size: 13px;
-}
-
-#photo-count {
-  min-width: 42px;
-  font-size: 14px;
-  text-align: center;
-}
-
-.photo-plus {
-  color: #111827;
-  font-size: 42px;
-  font-weight: 300;
-  line-height: 1;
-}
-
-.field {
-  display: block;
-  margin-bottom: 18px;
-}
-
-.field span {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.field em {
-  color: #ff3b30;
-  font-size: 13px;
-  font-style: normal;
-}
-
-.field input,
-.field textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px;
-  border: 1px solid #d6dbe3;
-  border-radius: 6px;
-  font: 14px/1.45 Arial, sans-serif;
-}
-
-.field textarea {
-  min-height: 96px;
-  resize: vertical;
-}
-
-.search-box {
+.filter-contents {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-#place-search-input {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid #d6dbe3;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-#place-search-btn {
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 6px;
-  background: #2563eb;
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-#place-search-results {
+/* 위험 지점 리스트 세로 정렬 구조 */
+.marker-legend-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: calc(100% - 60px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.place-result-item {
-  padding: 10px 4px;
-  border-bottom: 1px solid #edf0f5;
-  cursor: pointer;
-}
-
-.place-result-item:hover {
-  background: #f5f7fa;
-}
-
-.place-result-name {
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.place-result-address {
-  font-size: 12px;
-  color: #6b7280;
+/* 🛠️ 요구사항 완벽 반영: 출발과 도착 장소를 반반 나누어 한 줄에 무조건 나란히 대칭 정렬 */
+.route-legend-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* 50%대 50% 분할 */
+  gap: 16px;
   margin-top: 2px;
 }
 
-/* ===== PC 레이아웃 (768px 이상) =====
-   768px는 부트스트랩 등에서도 쓰는 흔한 모바일/PC 분기점이라 그대로 사용.
-   구조(HTML)는 그대로 두고, 검색카드+필터시트를 감싼 #app-panel을
-   오른쪽에 고정된 사이드바 하나로 재배치한다. */
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.legend-label {
+  font-size: 13px;
+  color: #1e293b;
+  font-weight: bold;
+}
+
+.route-suggestions {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  max-height: 140px; margin: 0; padding: 4px; list-style: none; background: #fff;
+  border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow-y: auto; box-sizing: border-box;
+}
+.route-suggestion-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.route-suggestion-item:hover { background: #f5f7fa; }
+.route-suggestion-name { font-size: 13px; font-weight: 700; color: #111827; }
+.route-suggestion-address { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+/* --------------------------------------------------------
+   🖥️ [PC 레이아웃 변경 설정] 768px 이상 분기
+-------------------------------------------------------- */
 @media (min-width: 768px) {
-  #topbar {
-    padding: 0 24px;
+  
+  #pc-topbar {
+    display: flex;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 25;
+    height: 64px;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   }
 
+  .mobile-card-header,
+  .mobile-filter-header {
+    display: none;
+  }
+
+  /* 패널 투명화 디자인 구조 고정 */
   #app-panel {
-    position: fixed;
-    top: 56px;
-    right: 0;
+    top: 64px;
+    right: 16px; 
+    left: auto;
     bottom: 0;
-    width: 400px;
+    width: 380px;
+    background: transparent; 
+    padding: 24px 0 0 0; 
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 16px;
-    box-sizing: border-box;
-    overflow-y: auto;
+    justify-content: flex-start;
+    gap: 24px; 
+    pointer-events: none; 
+    overflow: hidden;
+    border-left: 0; 
+  }
+
+  #search-card,
+  #filter-sheet {
+    pointer-events: auto;
   }
 
   #search-card {
-    position: static;
-    top: auto;
-    left: auto;
-    transform: none;
-    width: 100%;
-    max-width: none;
-    border-radius: 16px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    padding: 16px;
     flex-shrink: 0;
   }
+  
+  .route-input-row {
+    padding: 10px 14px;
+  }
+  .search-card-footer {
+    margin-top: 12px;
+  }
+  .find-route-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
 
+  /* 아래 바 공중부양 하단 여백 형성 디자인 고정 */
   #filter-sheet {
-    position: static;
-    left: auto;
-    bottom: auto;
-    transform: none;
-    width: 100%;
-    max-width: none;
-    min-height: 160px;
-    flex: 1;
-    border-radius: 16px;
+    background: #fff;
+    border-radius: 12px; 
+    padding: 24px 16px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    flex: 1; 
+    margin-bottom: 24px; 
+    display: flex;
+    flex-direction: column;
   }
 
   .sheet-handle {
-    display: none; /* 터치 드래그용 손잡이라 PC에서는 의미 없음 */
+    display: none;
+  }
+
+  .filter-contents {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  /* PC 버전일 때는 일렬 세로 정렬로 결합 정돈 */
+  .marker-legend-list {
+    gap: 16px;
+  }
+  .route-legend-row {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  
+  .legend-label {
+    font-size: 14px;
+  }
+  .icon-box-placeholder {
+    width: 24px;
+    height: 24px;
   }
 }
+
+/* ===== 모달 컴포넌트 구조 고정 ===== */
+.register-menu { display: none; transform: translate(12px, -8px); background: #fff; border: 1px solid #d9dfe8; border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); z-index: 35; }
+.register-menu button { border: 0; padding: 10px 14px; background: #fff; color: #1f2937; cursor: pointer; font-size: 14px; font-weight: 700; }
+.register-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 40; width: min(400px, calc(100vw - 28px)); max-height: calc(100vh - 28px); overflow: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 25px rgba(0, 0, 0, 0.3); }
+.modal-header { display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; height: 52px; padding: 0 16px; border-bottom: 1px solid #edf0f5; }
+.modal-header h1 { margin: 0; font-size: 17px; text-align: center; }
+.modal-header button { border: 0; background: transparent; cursor: pointer; font-size: 15px; }
+#cancel-btn { text-align: left; }
+#save-btn { color: #2563eb; font-weight: 700; text-align: right; }
+.modal-body { padding: 18px 16px 20px; }
+.photo-box { display: flex; align-items: center; justify-content: center; position: relative; min-height: 180px; margin-bottom: 24px; border: 1px dashed #cbd5e1; border-radius: 8px; cursor: pointer; }
+#place-photo { display: none; }
+#place-preview { display: none; width: 100%; max-height: 180px; object-fit: cover; border-radius: 6px; }
+.photo-plus { font-size: 36px; color: #cbd5e1; }
+.field { display: block; margin-bottom: 12px; }
+.field span { display: block; margin-bottom: 4px; font-size: 14px; font-weight: bold; }
+.field input, .field textarea { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.field textarea { min-height: 80px; resize: vertical; }
+.photo-controls { display: none; position: absolute; left: 12px; right: 12px; bottom: 12px; align-items: center; justify-content: center; gap: 10px; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+.photo-controls button { border: 0; border-radius: 999px; background: rgba(0, 0, 0, 0.45); color: #fff; cursor: pointer; font-size: 14px; width: 24px; height: 24px; }
+#photo-count { min-width: 42px; font-size: 13px; text-align: center; }

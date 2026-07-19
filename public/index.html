@@ -3,97 +3,138 @@
 <head>
   <meta charset="utf-8" /> 
   <meta name="viewport" content="width=device-width, initial-scale=1" /> 
-  <title>배리어프리 지도 - 포천 중심</title> 
+  <title>WAY:FIBER</title> 
   <link rel="stylesheet" href="./styles.css" /> 
 </head>
 <body> 
 
-  <!-- 로고/로그인: 모바일·PC 공통 상단 바 (레이아웃은 CSS 미디어쿼리로만 전환) -->
-  <header id="topbar">
-    <div class="logo-placeholder logo-placeholder-lg"></div>
-    <button class="text-link-btn" type="button">로그인</button>
+  <!-- PC 전용 상단 바 (모바일 완전 숨김) -->
+  <header id="pc-topbar">
+    <div class="logo-box-placeholder"></div>
+    <button class="text-link-btn" id="pc-extra-info-btn" type="button">추가 설명</button>
   </header>
 
-  <!-- 검색+필터 패널: 모바일에서는 위/아래로 분리되어 보이고, PC에서는 오른쪽 사이드바 하나로 합쳐짐 -->
+  <!-- 메인 앱 패널 -->
   <div id="app-panel">
+    
+    <!-- 길찾기 카드 -->
     <div id="search-card">
+      <div class="mobile-card-header">
+        <div class="logo-box-placeholder"></div>
+      </div>
+
       <div class="route-input-group">
+        <!-- 출발지 -->
         <div class="route-input-wrapper">
           <div class="route-input-row">
-            <span class="route-dot"></span>
+            <span class="route-dot start-dot"></span>
             <input id="route-start-input" type="text" class="route-text-input" placeholder="출발" autocomplete="off" />
+            <button id="set-start-current-btn" class="icon-box-placeholder" type="button" aria-label="출발지 지정"></button>
           </div>
           <ul id="route-start-suggestions" class="route-suggestions"></ul>
         </div>
 
+        <!-- 도착지 -->
         <div class="route-input-wrapper">
           <div class="route-input-row">
-            <span class="route-dot"></span>
+            <span class="route-dot end-dot"></span>
             <input id="route-end-input" type="text" class="route-text-input" placeholder="도착" autocomplete="off" />
+            <button id="set-end-current-btn" class="icon-box-placeholder" type="button" aria-label="도착지 지정"></button>
           </div>
           <ul id="route-end-suggestions" class="route-suggestions"></ul>
         </div>
 
-        <button id="swap-btn" class="swap-btn" type="button" aria-label="출발지와 도착지 바꾸기">
+        <!-- 전환 버튼 -->
+        <button id="swap-btn" class="swap-btn" type="button" aria-label="전환">
           <span class="swap-icon">⇅</span>
         </button>
       </div>
 
-      <button id="find-route-btn" class="find-route-btn" type="button" disabled>
-        길찾기 <span class="arrow">›</span>
-      </button>
-    </div>
-
-    <div id="info-bar"></div>
-    <div id="sidebar">
-      <div class="search-box">
-        <input id="place-search-input" type="text" placeholder="장소, 주소를 검색해보세요" />
-        <button id="place-search-btn" type="button">검색</button>
+      <!-- 카드 하단 버튼 컨트롤 -->
+      <div class="search-card-footer">
+        <button id="find-route-btn" class="find-route-btn" type="button" disabled>길찾기 ></button>
+        <button id="move-current-location-btn" class="inline-current-btn" type="button">내 위치 표시</button>
       </div>
-      <ul id="place-search-results"></ul>
     </div>
 
-    <!-- 마커 종류별 필터: 다음 작업에서 채울 자리, 지금은 비워둠 -->
+    <!-- 마커 설명 영역 -->
     <div id="filter-sheet">
       <div class="sheet-handle"></div>
+      
+      <div class="mobile-filter-header">
+        <div class="logo-box-placeholder"></div>
+        <button class="text-link-btn" id="mobile-extra-info-btn" type="button">추가 설명</button>
+      </div>
+
+      <div class="filter-contents">
+        <!-- 상단 위험 마커 종류 리스트 -->
+        <ul class="marker-legend-list">
+          <li class="legend-item">
+            <div class="icon-box-placeholder"></div>
+            <span class="legend-label">장애인 화장실</span>
+          </li>
+          <li class="legend-item">
+            <div class="icon-box-placeholder"></div>
+            <span class="legend-label">경사면이 없는 장소</span>
+          </li>
+          <li class="legend-item">
+            <div class="icon-box-placeholder"></div>
+            <span class="legend-label">신호등이 없는 횡단보도</span>
+          </li>
+        </ul>
+
+        <!-- 🛠️ 출발/도착 장소 전용 독립 가로 배치 박스 (무조건 수평 대칭 보장) -->
+        <div class="route-legend-row">
+          <div class="legend-item">
+            <div class="icon-box-placeholder"></div>
+            <span class="legend-label">출발 장소</span>
+          </div>
+          <div class="legend-item">
+            <div class="icon-box-placeholder"></div>
+            <span class="legend-label">도착 장소</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
+  <!-- 카카오 지도 배경 -->
   <div id="map"></div>
 
+  <!-- 가상 숨김 구조 -->
+  <div style="display: none;">
+    <div id="info-bar"></div>
+    <input id="place-search-input" type="text" value="" />
+    <button id="place-search-btn" type="button"></button>
+    <ul id="place-search-results"></ul>
+    <button id="use-current-location-btn" type="button"></button>
+  </div>
+
+  <!-- 신규 장소 등록 기능 컴포넌트 -->
   <div id="register-menu" class="register-menu"> 
     <button id="open-form-btn" type="button">신규 장소 등록</button> 
   </div>
 
-  <section id="register-modal" class="register-modal" aria-label="신규 장소 등록"> 
+  <section id="register-modal" class="register-modal"> 
     <header class="modal-header"> 
       <button id="cancel-btn" type="button">취소</button> 
       <h1>신규 장소 등록</h1> 
       <button id="save-btn" type="button">등록</button> 
     </header>
-
     <form id="place-form" class="modal-body">
-      <label class="photo-box" for="place-photo"> 
-        <img id="photo-preview" alt="선택한 장소 사진 미리보기" /> 
-        <span id="photo-guide" class="photo-plus" aria-hidden="true">+</span> 
+      <label class="photo-box" for="place-photo">
+        <img id="photo-preview" alt="선택한 장소 사진 미리보기" />
+        <span id="photo-guide" class="photo-plus">+</span>
         <span id="photo-controls" class="photo-controls">
-          <button id="prev-photo-btn" type="button" aria-label="이전 사진">‹</button> 
+          <button id="prev-photo-btn" type="button">‹</button> 
           <strong id="photo-count">1/1</strong> 
-          <button id="next-photo-btn" type="button" aria-label="다음 사진">›</button> 
+          <button id="next-photo-btn" type="button">›</button> 
           <button id="delete-photo-btn" type="button">삭제</button> 
-        </span> 
+        </span>
       </label>
       <input id="place-photo" type="file" accept="image/*" multiple /> 
-
-      <label class="field">
-        <span>장소명 <em>(필수)</em></span>
-        <input id="place-name" type="text" placeholder="업체의 명칭을 입력해주세요." /> 
-      </label>
-
-      <label class="field">
-        <span>기타 <em>(필수)</em></span> 
-        <textarea id="place-reason" placeholder="이 장소가 왜 등록되었는지 입력해주세요. 예: 이 가게의 입구에 경사로가 없어서 등록되었다."></textarea> 
-      </label>
+      <label class="field"><span>장소명 <em>(필수)</em></span><input id="place-name" type="text" /></label>
+      <label class="field"><span>기타 <em>(필수)</em></span><textarea id="place-reason"></textarea></label>
     </form>
   </section>
 
@@ -101,6 +142,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script> 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> 
   <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=49e85ecac915893ebe3e89efcd4d492c&libraries=services&autoload=false"></script>
-  <script src="./app.js"></script>  
+  <script src="./app.js"></script>   
 </body>
 </html>
